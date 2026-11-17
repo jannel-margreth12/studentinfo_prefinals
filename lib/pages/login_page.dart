@@ -15,6 +15,7 @@ class _LoginPageState extends State<LoginPage> {
   final _password = TextEditingController();
   bool _loading = false;
   bool _isCreatingAccount = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -23,9 +24,18 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+  void _showError(String message, {Color? backgroundColor}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: backgroundColor,
+        content: Text(
+          message,
+          style: backgroundColor == null
+              ? null
+              : const TextStyle(color: Colors.white),
+        ),
+      ),
+    );
   }
 
   Future<void> _submitEmail() async {
@@ -45,7 +55,21 @@ class _LoginPageState extends State<LoginPage> {
       }
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      _showError(e.message ?? 'Unable to authenticate.');
+      final isInvalidCredential =
+          e.code == 'wrong-password' || e.code == 'invalid-credential';
+      final message = switch (e.code) {
+        'wrong-password' ||
+        'invalid-credential' => 'Incorrect email or password.',
+        'user-not-found' => 'No account found for this email.',
+        'email-already-in-use' => 'An account already exists for this email.',
+        'weak-password' =>
+          'Use a stronger password with at least 6 characters.',
+        _ => e.message ?? 'Unable to authenticate.',
+      };
+      _showError(
+        message,
+        backgroundColor: isInvalidCredential ? const Color(0xFFB3261E) : null,
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -185,11 +209,27 @@ class _LoginPageState extends State<LoginPage> {
                             const SizedBox(height: 14),
                             TextFormField(
                               controller: _password,
-                              obscureText: true,
-                              decoration: _inputDecoration(
-                                'Password',
-                                Icons.lock_outline,
-                              ),
+                              obscureText: _obscurePassword,
+                              decoration:
+                                  _inputDecoration(
+                                    'Password',
+                                    Icons.lock_outline,
+                                  ).copyWith(
+                                    suffixIcon: IconButton(
+                                      tooltip: _obscurePassword
+                                          ? 'Show password'
+                                          : 'Hide password',
+                                      icon: Icon(
+                                        _obscurePassword
+                                            ? Icons.visibility_outlined
+                                            : Icons.visibility_off_outlined,
+                                      ),
+                                      onPressed: () => setState(
+                                        () => _obscurePassword =
+                                            !_obscurePassword,
+                                      ),
+                                    ),
+                                  ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
                                   return 'Enter your password';
